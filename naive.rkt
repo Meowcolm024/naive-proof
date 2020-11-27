@@ -36,4 +36,9 @@
             (apply-infer (cons (list 'proof (caddr inf)) proofs) (cdr infers))
             'fail ))))
 
+; a
+; a -> b
+; (a ^ b) -> c
+; ------------
+; c
 (do-proof '((proof a) (infer a b) (infer (both a b) c)))
