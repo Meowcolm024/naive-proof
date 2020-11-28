@@ -16,7 +16,7 @@
               (cond ((eq? np l) (simplify np))
                     ((eq? np r) (simplify np))
                     (else (append (list 'proof np) (simplify p))))))
-            (else (append (list 'proof np) (simplify p))))))
+            (else (list 'and np (simplify p))))))
 
   (define (handle-or np p)
     (let ((tag (car p)) (body (cdr p)))
@@ -25,7 +25,7 @@
               (cond ((eq? np l) (simplify np))
                     ((eq? np r) (simplify np))
                     (else (append (list 'proof np) (simplify p))))))
-            (else (append (list 'proof np) (simplify p))))))
+            (else (list 'or np (simplify p))))))
   
   (if (not (pair? pf))
     pf
@@ -73,9 +73,10 @@
 (define (simp-all pf)
   (let ((tag (car pf)) (body (cdr pf)))
     (cond ((eq? tag 'proof )
-           (simplify (car body)))
+           (list 'proof (simplify (car body))))
           ((eq? tag 'infer )
-           (list 'infer (simplify (car body)) (simplify (cadr body)))))))
+           (list 'infer (simplify (car body)) (simplify (cadr body))))
+          (else pf))))
 
 (define (do-proof statements)
   (let ((proofs (foldr append '() (map expend (filter (lambda (x) (eq? 'proof (car x))) (map simp-all statements)))))
@@ -110,15 +111,8 @@
             (apply-infer (cons (list 'proof (caddr inf)) proofs) (cdr infers))
             'fail ))))
 
-; a
-; a -> b
-; (a ^ b) -> c
-; ------------
-; c
 (do-proof '(
   (proof (and (not p) q))
   (infer q r)
   (infer r t)
 ))
-
-          
