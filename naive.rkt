@@ -8,7 +8,6 @@
 ;; ('not 'a)
 
 (define (simplify pf)
-
   (define (handle-and np p)
     (let ((tag (car p)) (body (cdr p)))
       (cond ((eq? tag 'or ) 
@@ -58,17 +57,19 @@
 
 
 (define (expend pf)
+  (define (expend-pf pf)
+    (if (not (pair? pf))
+        (list (list 'proof pf))
+        (let ((tag (car pf)) (body (cdr pf)))
+          (cond ((eq? tag 'not ) (list (list 'proof pf)))
+                ((eq? tag 'and ) (append (expend-pf (car body)) (expend-pf (cadr body))))
+                (else (list (list 'proof pf)))))))
+  
   (let ((tag (car pf)) (body (cdr pf)))
-    (if (eq? tag 'proof ) (expend-pf (car body))
-           (expend-pf pf))))
+    (cond ((eq? tag 'proof ) (expend-pf (car body)))
+          ((eq? tag 'infer ) (list pf))
+          (else (expend-pf pf)))))
 
-(define (expend-pf pf)
-  (if (not (pair? pf))
-    (list (list 'proof pf))
-    (let ((tag (car pf)) (body (cdr pf)))
-      (cond ((eq? tag 'not ) (list (list 'proof pf)))
-            ((eq? tag 'and ) (append (expend-pf (car body)) (expend-pf (cadr body))))
-            (else (list (list 'proof pf)))))))
 
 (define (simp-all pf)
   (let ((tag (car pf)) (body (cdr pf)))
@@ -78,13 +79,12 @@
            (list 'infer (simplify (car body)) (simplify (cadr body))))
           (else pf))))
 
+
 (define (do-proof statements)
-  (let ((proofs (foldr append '() (map expend (filter (lambda (x) (eq? 'proof (car x))) (map simp-all statements)))))
-        (infers (filter (lambda (x) (eq? 'infer (car x))) (map simp-all statements))))
+  (let ((proofs (foldr append '() (map (lambda (x) (expend (simp-all x))) statements))))
     (begin
       (displayln proofs)
-      (displayln infers)
-      (displayln (apply-infer proofs infers)))))
+      (displayln (apply-infer proofs)))))
 
 
 (define (sat proofs p)
@@ -93,26 +93,54 @@
       (or (eq? (cadr (car proofs)) p)
           (sat (cdr proofs) p))))
 
-(define (apply-infer proofs infers)
-  (define (handle-infer inf)
-    (if (pair? (cadr inf))
-      (cond ((eq? 'and (car (cadr inf)))
-             (and (sat proofs (cadr (cadr inf))) (sat proofs (caddr (cadr inf)))))
-            ((eq? 'or (car (cadr inf)))
-             (or (sat proofs (cadr (cadr inf))) (sat proofs (caddr (cadr inf)))))
-            (else 'fail ))
-      (sat proofs (cadr inf))))
-  (let ((inf (car infers)))
-    (if (null? (cdr infers))
-        (if (handle-infer inf)
-            (caddr inf)
-            'fail )
-        (if (handle-infer inf)
-            (apply-infer (cons (list 'proof (caddr inf)) proofs) (cdr infers))
-            'fail ))))
+
+(define (apply-infer proofs)
+  (define (dispatch pfs ifs)
+    (define (handle inf)
+      (define (comp x)
+        (if (pair? x)
+          (let ((tag (car x)) (body (cdr x)))
+              (cond ((eq? tag 'and )
+                      (and (comp (car body)) (comp (cadr body))))
+                    ((eq? tag 'or )
+                      (or (comp (car body)) (comp (cadr body))))
+                    ((eq? tag 'not )
+                     (not (comp (car body))))
+                    (else #f)))
+          (sat pfs x)))
+      (let ((left (car inf)) (right (cadr inf)))  
+          (if (comp left) right 'fail ))
+    )
+
+    (define (handle-infer inf)
+      (let ((ra (handle inf)))
+        (if (eq? ra 'fail )
+          (let ((rb (handle (list (simplify (list 'not (cdr inf))) (simplify (list 'not (car inf)))))))
+            (if (eq? rb 'fail )
+            'fail
+            rb))
+          ra)))
+    
+    (if (eq? (length ifs) 1)
+      (let ((tag (car (car ifs))) (body (cdr (car ifs))))
+        (cond ((eq? tag 'proof ) body)
+              ((eq? tag 'infer ) (handle-infer body))
+              (else 'fail )))
+      (let ((current (car ifs)) (rest (cdr ifs)))
+        (let ((tag (car current)) (body (cdr current)))
+          (cond ((eq? tag 'proof ) (dispatch (cons current pfs) rest))
+                ((eq? tag 'infer ) 
+                  (let ((result (handle-infer body))) 
+                    (if (eq? result 'fail ) 
+                      'fail 
+                      (dispatch (cons (list 'proof result) pfs) rest))))
+                (else 'fail ))))))
+
+  (dispatch null proofs)
+)
 
 (do-proof '(
   (proof (and (not p) q))
-  (infer q r)
-  (infer r t)
+  (infer r p)
+  (infer (not r) t)
 ))

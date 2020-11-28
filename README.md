@@ -7,16 +7,20 @@ a naive proof assistant that does nothing :)
 to infer:
 
 ``` txt
-a
-a -> b
-(a ^ b) -> c
-------------
-c
+p' ^ q
+r -> p
+r' -> t
+-------
+t
 ```
 
 code:
 
 ``` scheme
-(do-proof '((proof a) (infer a b) (infer (both a b) c)))
-;; get c
+(do-proof '(
+  (proof (and (not p) q))
+  (infer r p)
+  (infer (not r) t)
+))
+;; get t
 ```
